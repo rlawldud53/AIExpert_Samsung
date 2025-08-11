@@ -6,9 +6,10 @@ from torch.utils.data import Dataset
 from torchvision import transforms as T
 import joblib
 from pathlib import Path
-
 import clip
+import json
 from tqdm.auto import tqdm
+import numpy as np
 
 class ClipEmbed:
     def __init__(self, device):
@@ -21,6 +22,10 @@ class ClipEmbed:
             text = clip.tokenize(text).to(self.device)
             text_emb = self.model.encode_text(text)[0].cpu()
         return text_emb
+    
+    def encode(self,texts):
+        feats = self.embed(texts)
+        return feats.detach().cpu().float()
 
 
 def get_transform(image_size, normalize=False):
@@ -30,7 +35,7 @@ def get_transform(image_size, normalize=False):
     return T.Compose(ops)
 
 class CelebADialogDataset(Dataset):
-    def __init__(self, img_dir, ann_jsonl, image_size=32, normalize=False, clip_embedder=None):
+    def __init__(self, img_dir, ann_jsonl, image_size=32, normalize=False, clip_embedder=None, num_text_emb_pca=None):
         assert clip_embedder is not None, "Pass a ClipEmbed instance"
         self.img_dir = Path(img_dir)
         with open(ann_jsonl, "r", encoding="utf-8") as f:
@@ -38,6 +43,7 @@ class CelebADialogDataset(Dataset):
         self.transform = get_transform(image_size, normalize)
         self.clip = clip_embedder
         self.device = getattr(self.clip, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.num_text_emb_pca = num_text_emb_pca
 
     def __len__(self): 
         return len(self.items)
@@ -52,10 +58,14 @@ class CelebADialogDataset(Dataset):
         img = self.transform(Image.open(self.img_dir/name).convert("RGB"))
         emb = self._encode(text)
         return img, {"text_emb": emb, "text": text}
+    
+    def random_model_kwargs(self, n):
 
-    @torch.no_grad()
-    def embed_new_text(self, text: str, clip_embedder=None):
-        ce = clip_embedder or self.clip
-        z = ce.encode([text]).to(self.device)
-        return z.squeeze(0).detach().cpu()
+        # return n random samples
+        idxs = np.random.choice(len(self), n)
+        samples = [self.__getitem__(idx) for idx in idxs]
+        imgs, model_kwargs = torch.utils.data.default_collate(samples)
+
+        return model_kwargs
+
 
