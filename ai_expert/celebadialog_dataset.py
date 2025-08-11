@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 import joblib
+from pathlib import Path
 
 import clip
 from tqdm.auto import tqdm
