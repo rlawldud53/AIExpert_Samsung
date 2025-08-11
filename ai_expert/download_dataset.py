@@ -4,6 +4,7 @@ from subprocess import run, CalledProcessError
 import re
 import gdown
 import json
+from tqdm.auto import tqdm
 
 def gdown_from_view_url(url: str, out: Path, show_progress: bool = True):
     m = re.search(r"/d/([a-zA-Z0-9_-]+)/", url)
